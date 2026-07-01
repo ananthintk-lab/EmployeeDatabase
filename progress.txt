@@ -87,6 +87,7 @@ Started: Wed Jul  1 19:43:37 IST 2026
 - **Learnings for future iterations:**
   - `MethodArgumentTypeMismatchException` (bad path variable type, e.g. non-numeric `{id}`) already returns 400 Bad Request via Spring's built-in default handler with zero extra code — US-008 only needs to *reconcile the response body shape* to the standard `{timestamp, status, error, message, path}` format if a custom handler is added, not "make it return 400" (it already does).
   - When starting the app via `mvnw.cmd spring-boot:run` through `Start-Process`, the PID returned by `Start-Process` is the `mvnw.cmd`/Maven wrapper process, NOT the actual JVM listening on port 8080 — stopping that PID alone leaves an orphaned java process holding the port and log files. Find the real PID with `Get-NetTCPConnection -LocalPort 8080 | Select-Object -ExpandProperty OwningProcess` and stop that one before cleaning up temp log files, or `git status`/file deletion will fail silently due to the lock.
+- springdoc-openapi (2.8.9) reads jakarta Bean Validation annotations for schema constraints, but coverage is uneven: `@NotBlank`/`@Size` reliably produce `minLength`/`maxLength` in the generated schema, but `@Email` does NOT automatically produce `format: "email"` — add an explicit `@Schema(format = "email")` alongside `@Email` if the acceptance criteria require the constraint to be visible in the OpenAPI schema.
 ---
 
 ## 2026-07-01 20:56 IST - US-006
@@ -132,4 +133,17 @@ Started: Wed Jul  1 19:43:37 IST 2026
   - To read a non-2xx response BODY from PowerShell (not just the status code), `Invoke-RestMethod`'s `$_.ErrorDetails.Message` came back empty in this environment — instead catch the exception, get `$_.Exception.Response.GetResponseStream()`, and read it via `New-Object System.IO.StreamReader($stream)` / `.ReadToEnd()`. Use this pattern for any future manual verification that needs to inspect error response bodies, not just status codes.
   - Existing tests (`EmployeeUpdateControllerTest`'s 404/409 assertions, `EmployeeControllerTest`'s 400/409 assertions) only checked `status`/`message`/`status code`, never asserted the full body shape, so widening the response body with `timestamp`/`path` fields was a non-breaking additive change — no existing test needed updating.
   - All 5 CRUD endpoints (US-003 through US-007) and the shared exception handling (US-008) are now complete — only US-009 (OpenAPI/Swagger annotations: `@Operation`/`@ApiResponse` on each endpoint, richer API info) remains.
+---
+
+## 2026-07-01 22:10 IST - US-009
+- Implemented OpenAPI / Swagger Documentation: richer API info and per-endpoint `@Operation`/`@ApiResponses` annotations; no new business logic, so no new unit/integration tests were required beyond re-running the existing suite to confirm nothing broke.
+- Files changed:
+  - src/main/java/com/employee/EmployeeDatabase/EmployeeDatabaseApplication.java (added `@OpenAPIDefinition(info = @Info(title = "Employee Management API", version = "1.0.0", description = "REST API for creating, retrieving, updating, and deleting employee records."))`)
+  - src/main/java/com/employee/EmployeeDatabase/controller/EmployeeController.java (added `@Operation(summary=..., description=...)` and `@ApiResponses({@ApiResponse(...), ...})` to all 5 endpoints: POST, GET all, GET by id, PUT, DELETE)
+  - src/main/java/com/employee/EmployeeDatabase/model/Employee.java (added `@Schema(format = "email")` on the `email` field so the `@Email` constraint is visible in the generated schema — see Codebase Patterns note above)
+- `mvn compile`, `mvn test` (43/43 tests pass across 9 test classes per target/surefire-reports), `mvn verify`, `mvn clean install` all pass.
+- Manually started the app (`mvnw spring-boot:run` via `Start-Process`, PID resolved via `Get-NetTCPConnection -LocalPort 8080`): confirmed `/v3/api-docs` returns `info.title = "Employee Management API"`, `info.version = "1.0.0"`, a non-empty `info.description`; all 5 operations (`GET /employees`, `POST /employees`, `GET /employees/{id}`, `PUT /employees/{id}`, `DELETE /employees/{id}`) show the expected `summary` text; the `Employee` schema shows `firstName`/`lastName` with `minLength: 1` and `email` with `format: "email"` + `minLength: 1`. Confirmed `/swagger-ui/index.html` returns 200. Stopped the server (via the real PID) and removed temp log files afterward.
+- **Learnings for future iterations:**
+  - This was the last story in prd.json (US-001 through US-009) — all 9 stories now have `passes: true`. The full CRUD API (create/read/read-all/update/delete), global exception handling, and OpenAPI/Swagger documentation are complete.
+  - `@OpenAPIDefinition` is the simplest way to set global API `info` (title/version/description) when there's no existing `@Configuration` class dedicated to OpenAPI — placed directly on the `@SpringBootApplication` main class here since none existed.
 ---

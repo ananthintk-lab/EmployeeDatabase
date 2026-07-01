@@ -1,5 +1,6 @@
 package com.employee.EmployeeDatabase.model;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 
@@ -16,6 +17,7 @@ public class Employee {
 
     @NotBlank(message = "email must not be blank")
     @Email(message = "email must be a valid email address")
+    @Schema(format = "email")
     private String email;
 
     public Employee() {

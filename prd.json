@@ -181,14 +181,14 @@
         "mvn test passes"
       ],
       "priority": 9,
-      "passes": false,
+      "passes": true,
       "dependsOn": [
         "US-008"
       ],
-      "completionNotes": "Completed by agent"
+      "completionNotes": "Added @OpenAPIDefinition(info = @Info(title = \"Employee Management API\", version = \"1.0.0\", description = ...)) on EmployeeDatabaseApplication. Added @Operation(summary=..., description=...) and @ApiResponses (per-status @ApiResponse) to all 5 EmployeeController endpoints. Added @Schema(format = \"email\") on Employee.email since springdoc/swagger-core does not auto-map jakarta @Email to a schema format by default -- confirmed via /v3/api-docs that email now shows {type: string, format: email, minLength: 1} alongside firstName/lastName minLength:1 from @NotBlank. Verified /v3/api-docs lists correct info block and all 5 operations with summaries, and /swagger-ui/index.html returns 200."
     }
   ],
   "metadata": {
-    "updatedAt": "2026-07-01T21:30:00.000Z"
+    "updatedAt": "2026-07-01T22:10:00.000Z"
   }
 }
