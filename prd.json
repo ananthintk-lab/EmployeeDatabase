@@ -74,11 +74,11 @@
         "mvn test passes"
       ],
       "priority": 4,
-      "passes": false,
+      "passes": true,
       "dependsOn": [
         "US-002"
       ],
-      "completionNotes": "Completed by agent"
+      "completionNotes": "Added EmployeeService.getAllEmployees() (delegates to repository.findAll(), already sorted by id) and GET /employees in EmployeeController returning 200 with the list. Unit tests for service (empty/ordered list via Mockito) and a new @WebMvcTest+@MockitoBean EmployeeGetAllControllerTest covering empty/single/multiple scenarios in isolation. mvn compile/test/verify pass; manually verified GET /employees returns [] before creating an employee and the created employee after a POST."
     },
     {
       "id": "US-005",
@@ -189,6 +189,6 @@
     }
   ],
   "metadata": {
-    "updatedAt": "2026-07-01T14:43:00.000Z"
+    "updatedAt": "2026-07-01T20:20:00.000Z"
   }
 }

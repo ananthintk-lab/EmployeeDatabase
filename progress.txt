@@ -10,6 +10,7 @@ Started: Wed Jul  1 19:43:37 IST 2026
 - Validation annotations (`@NotBlank`, `@Email`) go directly on the `Employee` model fields (jakarta.validation.constraints), consistent with spring-boot-starter-validation.
 - On Windows, avoid PowerShell `-replace` with Get-Content/Set-Content on files containing non-ASCII characters (em-dashes etc.) — it mangled UTF-8 into mojibake in prd.json once. Prefer the Edit tool for any file with non-ASCII content.
 - `mvnw test`/`verify` print a benign "Mockito is currently self-attaching" / byte-buddy-agent warning on this JDK — it is not a build failure, ignore it when scanning output for real errors; check `target/surefire-reports/*.txt` for actual pass/fail counts instead of relying on console noise.
+- `@SpringBootTest` test classes share one cached Spring context (and one `InMemoryEmployeeRepository` instance) across the whole test run. For endpoints whose acceptance criteria require exact list-content assertions (e.g. "empty store", "N employees"), use `@WebMvcTest(EmployeeController.class)` + `@MockitoBean EmployeeService` instead so each test fully controls the data returned — see `EmployeeGetAllControllerTest`. Use `@MockitoBean` (not the deprecated `@MockBean`) on Spring Boot 3.4+.
 
 ---
 
@@ -55,4 +56,19 @@ Started: Wed Jul  1 19:43:37 IST 2026
   - `EmployeeControllerTest` uses `@SpringBootTest` + `@AutoConfigureMockMvc` with the real `InMemoryEmployeeRepository` bean (true integration test, no mocking of the repository) — all test methods share one Spring context and therefore one repository instance, so each test must use a unique email address to avoid unintended 409s across tests.
   - springdoc-openapi auto-discovers `@RestController` endpoints with zero extra annotations — Swagger UI/OpenAPI JSON already show POST /employees correctly; US-009 only needs to ADD `@Operation`/`@ApiResponse` annotations for richer docs, not wire up Swagger itself (already working since US-001's dependency setup).
   - On Windows/PowerShell, starting `mvnw spring-boot:run` via `Start-Process -RedirectStandardOutput/-RedirectStandardError` and polling with `Invoke-WebRequest` after a `Start-Sleep` works for manual Swagger/endpoint verification; remember to `Stop-Process` the java process afterward and delete any temp log/output files so `git status` stays clean before committing.
+---
+
+## 2026-07-01 20:20 IST - US-004
+- Implemented GET /employees (Get All Employees).
+- Files changed:
+  - src/main/java/com/employee/EmployeeDatabase/service/EmployeeService.java (added getAllEmployees(), delegates to repository.findAll())
+  - src/main/java/com/employee/EmployeeDatabase/controller/EmployeeController.java (added @GetMapping returning ResponseEntity.ok(list))
+  - src/test/java/com/employee/EmployeeDatabase/service/EmployeeServiceTest.java (2 new Mockito tests: empty list, ordered list passthrough)
+  - src/test/java/com/employee/EmployeeDatabase/controller/EmployeeGetAllControllerTest.java (new — 3 @WebMvcTest+@MockitoBean tests: empty array, single employee, multiple employees)
+  - src/test/java/com/employee/EmployeeDatabase/controller/CLAUDE.md (new — documents the shared-context isolation gotcha and the @WebMvcTest+@MockitoBean workaround)
+- `mvn compile`, `mvn test` (20/20 tests pass across 5 test classes per target/surefire-reports), `mvn verify` all pass.
+- Manually started the app (`mvnw spring-boot:run` via Start-Process, port 8080): confirmed GET /employees returns `[]` before any employee exists, POST /employees returns 201, and a subsequent GET /employees returns the created employee in a one-element array. Also confirmed GET /v3/api-docs still returns 200. Stopped the server and removed temp log files afterward.
+- **Learnings for future iterations:**
+  - Discovered mid-task that `Stop-Process -Name java` on this machine also targets the VS Code Java extension's bundled JRE (a separate long-lived process that restarts itself), not just the app under test — kill by the specific PID returned from `Start-Process`/`Get-NetTCPConnection -LocalPort 8080`, never by process name `java`.
+  - The GET-all pattern (service method delegates directly to `repository.findAll()`, controller wraps in `ResponseEntity.ok(...)`) is the template for US-005 (get by id) too — same delegate-to-repository, no extra logic in controller.
 ---

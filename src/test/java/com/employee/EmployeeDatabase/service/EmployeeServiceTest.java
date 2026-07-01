@@ -8,6 +8,9 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.util.Collections;
+import java.util.List;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -47,5 +50,27 @@ class EmployeeServiceTest {
                 .hasMessageContaining("jane@example.com");
 
         verify(employeeRepository, never()).save(any());
+    }
+
+    @Test
+    void getAllEmployees_withNoEmployees_returnsEmptyList() {
+        EmployeeService employeeService = new EmployeeService(employeeRepository);
+        when(employeeRepository.findAll()).thenReturn(Collections.emptyList());
+
+        List<Employee> result = employeeService.getAllEmployees();
+
+        assertThat(result).isEmpty();
+    }
+
+    @Test
+    void getAllEmployees_withEmployees_returnsThemInRepositoryOrder() {
+        EmployeeService employeeService = new EmployeeService(employeeRepository);
+        Employee first = new Employee(1L, "Jane", "Doe", "jane@example.com");
+        Employee second = new Employee(2L, "John", "Smith", "john@example.com");
+        when(employeeRepository.findAll()).thenReturn(List.of(first, second));
+
+        List<Employee> result = employeeService.getAllEmployees();
+
+        assertThat(result).containsExactly(first, second);
     }
 }

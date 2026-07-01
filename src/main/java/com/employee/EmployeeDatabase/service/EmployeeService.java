@@ -5,6 +5,8 @@ import com.employee.EmployeeDatabase.model.Employee;
 import com.employee.EmployeeDatabase.repository.EmployeeRepository;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
+
 /** Encapsulates employee business logic on top of the {@link EmployeeRepository}. */
 @Service
 public class EmployeeService {
@@ -25,5 +27,10 @@ public class EmployeeService {
         }
         employee.setId(null);
         return employeeRepository.save(employee);
+    }
+
+    /** Returns all employees, ordered by id ascending. */
+    public List<Employee> getAllEmployees() {
+        return employeeRepository.findAll();
     }
 }
