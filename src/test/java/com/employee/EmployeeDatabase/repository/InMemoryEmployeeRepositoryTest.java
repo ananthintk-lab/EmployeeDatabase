@@ -79,4 +79,19 @@ class InMemoryEmployeeRepositoryTest {
     void existsByEmail_falseWhenEmailAbsent() {
         assertThat(repository.existsByEmail("missing@example.com")).isFalse();
     }
+
+    @Test
+    void existsByEmailAndIdNot_falseWhenEmailBelongsToSameEmployee() {
+        Employee saved = repository.save(new Employee(null, "Jane", "Doe", "jane@example.com"));
+
+        assertThat(repository.existsByEmailAndIdNot("jane@example.com", saved.getId())).isFalse();
+    }
+
+    @Test
+    void existsByEmailAndIdNot_trueWhenEmailBelongsToDifferentEmployee() {
+        Employee saved = repository.save(new Employee(null, "Jane", "Doe", "jane@example.com"));
+        repository.save(new Employee(null, "John", "Smith", "john@example.com"));
+
+        assertThat(repository.existsByEmailAndIdNot("john@example.com", saved.getId())).isTrue();
+    }
 }

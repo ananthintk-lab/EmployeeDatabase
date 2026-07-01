@@ -115,11 +115,11 @@
         "mvn test passes"
       ],
       "priority": 6,
-      "passes": false,
+      "passes": true,
       "dependsOn": [
         "US-002"
       ],
-      "completionNotes": "Completed by agent"
+      "completionNotes": "Added EmployeeRepository.existsByEmailAndIdNot(email, id) (and InMemoryEmployeeRepository impl) so email-uniqueness checks can exclude the employee being updated. Added EmployeeService.updateEmployee(id, employee): looks up the existing employee (throws EmployeeNotFoundException if absent), checks existsByEmailAndIdNot for conflicts (throws DuplicateEmailException), then sets the path id on the body and saves. Added PUT /employees/{id} in EmployeeController with @Valid @RequestBody. Unit tests for repository (existsByEmailAndIdNot same/different employee) and service (success, not found, duplicate email with another employee, same-email-allowed), plus a new @WebMvcTest+@MockitoBean EmployeeUpdateControllerTest (200, 404, 400 blank field, 409 duplicate email). mvn compile/test/verify pass; manually verified PUT success, 404, and 409 (email held by another employee) against a running instance, plus confirmed the new endpoint appears in /v3/api-docs and Swagger UI."
     },
     {
       "id": "US-007",

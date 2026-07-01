@@ -96,4 +96,64 @@ class EmployeeServiceTest {
                 .isInstanceOf(EmployeeNotFoundException.class)
                 .hasMessageContaining("99");
     }
+
+    @Test
+    void updateEmployee_withExistingIdAndUniqueEmail_savesAndReturnsEmployee() {
+        EmployeeService employeeService = new EmployeeService(employeeRepository);
+        Employee existing = new Employee(1L, "Jane", "Doe", "jane@example.com");
+        Employee update = new Employee(null, "Jane", "Smith", "jane.smith@example.com");
+        Employee saved = new Employee(1L, "Jane", "Smith", "jane.smith@example.com");
+        when(employeeRepository.findById(1L)).thenReturn(Optional.of(existing));
+        when(employeeRepository.existsByEmailAndIdNot("jane.smith@example.com", 1L)).thenReturn(false);
+        when(employeeRepository.save(update)).thenReturn(saved);
+
+        Employee result = employeeService.updateEmployee(1L, update);
+
+        assertThat(result.getLastName()).isEqualTo("Smith");
+        assertThat(update.getId()).isEqualTo(1L);
+        verify(employeeRepository).save(update);
+    }
+
+    @Test
+    void updateEmployee_whenIdNotFound_throwsEmployeeNotFoundException() {
+        EmployeeService employeeService = new EmployeeService(employeeRepository);
+        Employee update = new Employee(null, "Jane", "Doe", "jane@example.com");
+        when(employeeRepository.findById(99L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> employeeService.updateEmployee(99L, update))
+                .isInstanceOf(EmployeeNotFoundException.class)
+                .hasMessageContaining("99");
+
+        verify(employeeRepository, never()).save(any());
+    }
+
+    @Test
+    void updateEmployee_withEmailBelongingToAnotherEmployee_throwsDuplicateEmailException() {
+        EmployeeService employeeService = new EmployeeService(employeeRepository);
+        Employee existing = new Employee(1L, "Jane", "Doe", "jane@example.com");
+        Employee update = new Employee(null, "Jane", "Doe", "john@example.com");
+        when(employeeRepository.findById(1L)).thenReturn(Optional.of(existing));
+        when(employeeRepository.existsByEmailAndIdNot("john@example.com", 1L)).thenReturn(true);
+
+        assertThatThrownBy(() -> employeeService.updateEmployee(1L, update))
+                .isInstanceOf(DuplicateEmailException.class)
+                .hasMessageContaining("john@example.com");
+
+        verify(employeeRepository, never()).save(any());
+    }
+
+    @Test
+    void updateEmployee_keepingSameEmail_isAllowed() {
+        EmployeeService employeeService = new EmployeeService(employeeRepository);
+        Employee existing = new Employee(1L, "Jane", "Doe", "jane@example.com");
+        Employee update = new Employee(null, "Jane", "Doe", "jane@example.com");
+        Employee saved = new Employee(1L, "Jane", "Doe", "jane@example.com");
+        when(employeeRepository.findById(1L)).thenReturn(Optional.of(existing));
+        when(employeeRepository.existsByEmailAndIdNot("jane@example.com", 1L)).thenReturn(false);
+        when(employeeRepository.save(update)).thenReturn(saved);
+
+        Employee result = employeeService.updateEmployee(1L, update);
+
+        assertThat(result.getEmail()).isEqualTo("jane@example.com");
+    }
 }

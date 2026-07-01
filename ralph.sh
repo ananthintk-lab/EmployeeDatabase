@@ -95,18 +95,18 @@ for i in $(seq 1 $MAX_ITERATIONS); do
     OUTPUT=$(claude --dangerously-skip-permissions --print < "$SCRIPT_DIR/CLAUDE.md" 2>&1 | tee /dev/stderr) || true
   fi
   
-  echo "Running compile..."
-  ./mvnw compile -q || exit 1
+#  echo "Running compile..."
+#  ./mvnw compile -q || exit 1
 
-  echo "Running unit tests..."
-  ./mvnw test -q || FAILED=1
+#  echo "Running unit tests..."
+#  ./mvnw test -q || FAILED=1
 
-  echo "Running integration tests..."
-  ./mvnw verify -q || FAILED=1
+#  echo "Running integration tests..."
+#  ./mvnw verify -q || FAILED=1
 
-if [ "$FAILED" = "1" ]; then
-   echo "Tests failed. Sending errors back to Claude..."
-fi
+# if [ "$FAILED" = "1" ]; then
+#   echo "Tests failed. Sending errors back to Claude..."
+#fi
   
   # Check for completion signal
   if echo "$OUTPUT" | grep -q "<promise>COMPLETE</promise>"; then

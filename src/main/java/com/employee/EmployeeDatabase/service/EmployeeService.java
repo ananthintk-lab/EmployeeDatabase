@@ -40,4 +40,18 @@ public class EmployeeService {
         return employeeRepository.findById(id)
                 .orElseThrow(() -> new EmployeeNotFoundException(id));
     }
+
+    /**
+     * Updates the employee with the given id, rejecting the request if the id does not exist
+     * or if the email is already in use by a different employee.
+     */
+    public Employee updateEmployee(Long id, Employee employee) {
+        employeeRepository.findById(id)
+                .orElseThrow(() -> new EmployeeNotFoundException(id));
+        if (employeeRepository.existsByEmailAndIdNot(employee.getEmail(), id)) {
+            throw new DuplicateEmailException(employee.getEmail());
+        }
+        employee.setId(id);
+        return employeeRepository.save(employee);
+    }
 }

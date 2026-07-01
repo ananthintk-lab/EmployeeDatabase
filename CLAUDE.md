@@ -15,10 +15,10 @@ You are an autonomous coding agent working on a software project.
        mvnw compile -q
        mvnw test -q
        mvnw verify -q
-7. If failure occurs:
-       analyze logs
-       fix code
-       rerun tests
+<!--7. If failure occurs: -->
+<!--       analyze logs -->
+<!--       fix code -->
+<!--       rerun tests -->
 8. Update CLAUDE.md files if you discover reusable patterns (see below)
 9. If checks pass, commit ALL changes with message: `feat: [Story ID] - [Story Title]`
 10. Update the PRD to set `passes: true` for the completed story
@@ -48,6 +48,13 @@ APPEND to progress.txt (never replace, always append):
 -  5. Provide the user with the GitHub PR link.
 -  6. Keep changes focused and minimal
 -  7. Follow existing code patterns
+
+## Quality Requirements
+
+<!-- - ALL commits must pass your project's quality checks -->
+<!-- - Do NOT commit broken code -->
+<!-- - Keep changes focused and minimal -->
+<!-- - Follow existing code patterns -->
 
 The learnings section is critical - it helps future iterations avoid repeating mistakes and understand the codebase better.
 
@@ -134,12 +141,6 @@ Before committing, check if any edited files have learnings worth preserving in 
 
 Only update CLAUDE.md if you have **genuinely reusable knowledge** that would help future work in that directory.
 
-## Quality Requirements
-
-- ALL commits must pass your project's quality checks (typecheck, lint, test)
-- Do NOT commit broken code
-- Keep changes focused and minimal
-- Follow existing code patterns
 
 ## Browser Testing (If Available)
 

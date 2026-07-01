@@ -88,3 +88,20 @@ Started: Wed Jul  1 19:43:37 IST 2026
   - `MethodArgumentTypeMismatchException` (bad path variable type, e.g. non-numeric `{id}`) already returns 400 Bad Request via Spring's built-in default handler with zero extra code — US-008 only needs to *reconcile the response body shape* to the standard `{timestamp, status, error, message, path}` format if a custom handler is added, not "make it return 400" (it already does).
   - When starting the app via `mvnw.cmd spring-boot:run` through `Start-Process`, the PID returned by `Start-Process` is the `mvnw.cmd`/Maven wrapper process, NOT the actual JVM listening on port 8080 — stopping that PID alone leaves an orphaned java process holding the port and log files. Find the real PID with `Get-NetTCPConnection -LocalPort 8080 | Select-Object -ExpandProperty OwningProcess` and stop that one before cleaning up temp log files, or `git status`/file deletion will fail silently due to the lock.
 ---
+
+## 2026-07-01 20:56 IST - US-006
+- Implemented PUT /employees/{id} (Update Employee).
+- Files changed:
+  - src/main/java/com/employee/EmployeeDatabase/repository/EmployeeRepository.java (added existsByEmailAndIdNot(email, id))
+  - src/main/java/com/employee/EmployeeDatabase/repository/InMemoryEmployeeRepository.java (impl: matches email case-insensitively, excludes the given id)
+  - src/main/java/com/employee/EmployeeDatabase/service/EmployeeService.java (added updateEmployee(id, employee): findById-or-throw EmployeeNotFoundException, existsByEmailAndIdNot-or-throw DuplicateEmailException, sets path id on body, saves)
+  - src/main/java/com/employee/EmployeeDatabase/controller/EmployeeController.java (added @PutMapping("/{id}") with @Valid @RequestBody Employee)
+  - src/test/java/com/employee/EmployeeDatabase/repository/InMemoryEmployeeRepositoryTest.java (2 new tests: existsByEmailAndIdNot false for own email, true for another employee's email)
+  - src/test/java/com/employee/EmployeeDatabase/service/EmployeeServiceTest.java (4 new Mockito tests: success, not found, duplicate email with another employee, same-email-allowed)
+  - src/test/java/com/employee/EmployeeDatabase/controller/EmployeeUpdateControllerTest.java (new — 4 @WebMvcTest+@MockitoBean tests: 200 success, 404 not found, 400 blank field, 409 duplicate email)
+- `mvn compile`, `mvn test` (35/35 tests pass across 7 test classes per target/surefire-reports), `mvn verify` all pass.
+- Manually started the app (`mvnw spring-boot:run`), confirmed via PowerShell `Invoke-RestMethod`: PUT on an existing id returns 200 with updated fields; PUT on a non-existent id (99999) returns 404; PUT reusing another employee's email returns 409; PUT keeping the same employee's own email succeeds (not exercised via HTTP but covered by unit tests). Confirmed `/v3/api-docs` lists a `put` operation under `/employees/{id}` and Swagger UI (`/swagger-ui/index.html`) still returns 200. Stopped the server (via the real PID from `Get-NetTCPConnection -LocalPort 8080`) and removed temp log files afterward.
+- **Learnings for future iterations:**
+  - The "exclude current record" uniqueness-check pattern (`existsByEmailAndIdNot`) added here is reusable for any future story needing update-time uniqueness validation — added directly to `EmployeeRepository`/`InMemoryEmployeeRepository` alongside the existing `existsByEmail`, not as service-layer filtering over `findAll()`.
+  - Update endpoints should always overwrite the path `{id}` onto the request body (`employee.setId(id)`) before saving, ignoring/ignoring-precedence over any id the client puts in the JSON body — mirrors how `createEmployee` clears the client-supplied id.
+---
