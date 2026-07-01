@@ -54,4 +54,11 @@ public class EmployeeService {
         employee.setId(id);
         return employeeRepository.save(employee);
     }
+
+    /** Deletes the employee with the given id, or throws {@link EmployeeNotFoundException} if none exists. */
+    public void deleteEmployee(Long id) {
+        employeeRepository.findById(id)
+                .orElseThrow(() -> new EmployeeNotFoundException(id));
+        employeeRepository.deleteById(id);
+    }
 }

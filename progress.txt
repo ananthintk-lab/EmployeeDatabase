@@ -105,3 +105,17 @@ Started: Wed Jul  1 19:43:37 IST 2026
   - The "exclude current record" uniqueness-check pattern (`existsByEmailAndIdNot`) added here is reusable for any future story needing update-time uniqueness validation — added directly to `EmployeeRepository`/`InMemoryEmployeeRepository` alongside the existing `existsByEmail`, not as service-layer filtering over `findAll()`.
   - Update endpoints should always overwrite the path `{id}` onto the request body (`employee.setId(id)`) before saving, ignoring/ignoring-precedence over any id the client puts in the JSON body — mirrors how `createEmployee` clears the client-supplied id.
 ---
+
+## 2026-07-01 21:30 IST - US-007
+- Implemented DELETE /employees/{id} (Delete Employee).
+- Files changed:
+  - src/main/java/com/employee/EmployeeDatabase/service/EmployeeService.java (added deleteEmployee(id): repository.findById-or-throw EmployeeNotFoundException, then repository.deleteById(id))
+  - src/main/java/com/employee/EmployeeDatabase/controller/EmployeeController.java (added @DeleteMapping("/{id}") returning ResponseEntity.noContent().build())
+  - src/test/java/com/employee/EmployeeDatabase/service/EmployeeServiceTest.java (2 new Mockito tests: success calls deleteById, not-found throws EmployeeNotFoundException and never calls deleteById)
+  - src/test/java/com/employee/EmployeeDatabase/controller/EmployeeDeleteControllerTest.java (new — 2 @WebMvcTest+@MockitoBean tests: 204 success, 404 not found)
+- `mvn compile`, `mvn test` (39/39 tests pass across 8 test classes per target/surefire-reports), `mvn verify` all pass.
+- Manually started the app (`mvnw spring-boot:run`), confirmed via PowerShell `Invoke-RestMethod`/`Invoke-WebRequest -UseBasicParsing`: DELETE on an existing id returns 204 No Content, a subsequent GET on that id returns 404, DELETE on a non-existent id (999999) returns 404, and `/v3/api-docs` lists a `delete` operation under `/employees/{id}`. Stopped the server (via the real PID from `Get-NetTCPConnection -LocalPort 8080`) and removed temp log files afterward.
+- **Learnings for future iterations:**
+  - `Invoke-WebRequest` (without `-UseBasicParsing`) can throw `PSInvalidOperationException` ("Windows PowerShell is in NonInteractive mode...") in this non-interactive shell when trying to use the IE-based parsing engine — always pass `-UseBasicParsing` when checking raw status codes (e.g. verifying 204 No Content) via `Invoke-WebRequest` on this machine; `Invoke-RestMethod` is fine for JSON bodies but doesn't surface status codes as easily on success.
+  - The delete-by-id pattern (service does findById-or-throw then deleteById, controller returns 204 via `ResponseEntity.noContent().build()`) completes the full CRUD set on `EmployeeController`/`EmployeeService` — US-008 (Global Exception Handling) is next and should consolidate all four exception handlers (`EmployeeNotFoundException`, `MethodArgumentNotValidException`, duplicate email, `MethodArgumentTypeMismatchException`) in the existing `GlobalExceptionHandler` into the standard `{timestamp, status, error, message, path}` shape — the current 404/409 handlers use a smaller `{status, error, message}` shape without `timestamp`/`path` and will need updating then.
+---

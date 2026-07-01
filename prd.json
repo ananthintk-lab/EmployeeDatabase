@@ -134,11 +134,11 @@
         "mvn test passes"
       ],
       "priority": 7,
-      "passes": false,
+      "passes": true,
       "dependsOn": [
         "US-002"
       ],
-      "completionNotes": "Completed by agent"
+      "completionNotes": "Added EmployeeService.deleteEmployee(id) (findById-or-throw EmployeeNotFoundException, then repository.deleteById(id)) and DELETE /employees/{id} in EmployeeController returning 204 No Content. Unit tests for service (success calls deleteById, not-found throws and never calls deleteById) and a new @WebMvcTest+@MockitoBean EmployeeDeleteControllerTest (204 success, 404 not found). mvn compile/test/verify pass. Manually verified against a running instance: DELETE on an existing id returns 204, a subsequent GET on that id returns 404, DELETE on a non-existent id returns 404, and /v3/api-docs lists a delete operation under /employees/{id}."
     },
     {
       "id": "US-008",
@@ -189,6 +189,6 @@
     }
   ],
   "metadata": {
-    "updatedAt": "2026-07-01T20:35:00.000Z"
+    "updatedAt": "2026-07-01T21:30:00.000Z"
   }
 }

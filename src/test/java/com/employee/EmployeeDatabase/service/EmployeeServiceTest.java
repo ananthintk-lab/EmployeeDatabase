@@ -156,4 +156,27 @@ class EmployeeServiceTest {
 
         assertThat(result.getEmail()).isEqualTo("jane@example.com");
     }
+
+    @Test
+    void deleteEmployee_whenIdExists_deletesEmployee() {
+        EmployeeService employeeService = new EmployeeService(employeeRepository);
+        Employee existing = new Employee(1L, "Jane", "Doe", "jane@example.com");
+        when(employeeRepository.findById(1L)).thenReturn(Optional.of(existing));
+
+        employeeService.deleteEmployee(1L);
+
+        verify(employeeRepository).deleteById(1L);
+    }
+
+    @Test
+    void deleteEmployee_whenIdNotFound_throwsEmployeeNotFoundException() {
+        EmployeeService employeeService = new EmployeeService(employeeRepository);
+        when(employeeRepository.findById(99L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> employeeService.deleteEmployee(99L))
+                .isInstanceOf(EmployeeNotFoundException.class)
+                .hasMessageContaining("99");
+
+        verify(employeeRepository, never()).deleteById(any());
+    }
 }
