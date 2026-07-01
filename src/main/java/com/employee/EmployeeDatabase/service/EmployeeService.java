@@ -1,6 +1,7 @@
 package com.employee.EmployeeDatabase.service;
 
 import com.employee.EmployeeDatabase.exception.DuplicateEmailException;
+import com.employee.EmployeeDatabase.exception.EmployeeNotFoundException;
 import com.employee.EmployeeDatabase.model.Employee;
 import com.employee.EmployeeDatabase.repository.EmployeeRepository;
 import org.springframework.stereotype.Service;
@@ -32,5 +33,11 @@ public class EmployeeService {
     /** Returns all employees, ordered by id ascending. */
     public List<Employee> getAllEmployees() {
         return employeeRepository.findAll();
+    }
+
+    /** Returns the employee with the given id, or throws {@link EmployeeNotFoundException} if none exists. */
+    public Employee getEmployeeById(Long id) {
+        return employeeRepository.findById(id)
+                .orElseThrow(() -> new EmployeeNotFoundException(id));
     }
 }

@@ -93,11 +93,11 @@
         "mvn test passes"
       ],
       "priority": 5,
-      "passes": false,
+      "passes": true,
       "dependsOn": [
         "US-002"
       ],
-      "completionNotes": "Completed by agent"
+      "completionNotes": "Added EmployeeService.getEmployeeById(id) (delegates to repository.findById, throws EmployeeNotFoundException if absent) and GET /employees/{id} in EmployeeController. Added an EmployeeNotFoundException handler to GlobalExceptionHandler returning 404 with {status, error, message}. Invalid path variable types (e.g. /employees/abc) already return 400 via Spring's default MethodArgumentTypeMismatchException handling, no custom handler needed. Unit tests for service (found/not found) and a new @WebMvcTest EmployeeGetByIdControllerTest (found, not found, invalid id type). mvn compile/test/verify pass; manually verified all three scenarios plus Swagger/OpenAPI docs against a running instance."
     },
     {
       "id": "US-006",
@@ -189,6 +189,6 @@
     }
   ],
   "metadata": {
-    "updatedAt": "2026-07-01T20:20:00.000Z"
+    "updatedAt": "2026-07-01T20:35:00.000Z"
   }
 }

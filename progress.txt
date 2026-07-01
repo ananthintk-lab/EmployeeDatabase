@@ -11,6 +11,7 @@ Started: Wed Jul  1 19:43:37 IST 2026
 - On Windows, avoid PowerShell `-replace` with Get-Content/Set-Content on files containing non-ASCII characters (em-dashes etc.) — it mangled UTF-8 into mojibake in prd.json once. Prefer the Edit tool for any file with non-ASCII content.
 - `mvnw test`/`verify` print a benign "Mockito is currently self-attaching" / byte-buddy-agent warning on this JDK — it is not a build failure, ignore it when scanning output for real errors; check `target/surefire-reports/*.txt` for actual pass/fail counts instead of relying on console noise.
 - `@SpringBootTest` test classes share one cached Spring context (and one `InMemoryEmployeeRepository` instance) across the whole test run. For endpoints whose acceptance criteria require exact list-content assertions (e.g. "empty store", "N employees"), use `@WebMvcTest(EmployeeController.class)` + `@MockitoBean EmployeeService` instead so each test fully controls the data returned — see `EmployeeGetAllControllerTest`. Use `@MockitoBean` (not the deprecated `@MockBean`) on Spring Boot 3.4+.
+- When manually verifying a running instance on Windows via `Start-Process ./mvnw.cmd spring-boot:run`, the returned `Start-Process` PID is the wrapper process, not the JVM on port 8080 — get the real PID via `Get-NetTCPConnection -LocalPort 8080 | Select-Object -ExpandProperty OwningProcess` and stop that one, or the port/log files stay locked after cleanup.
 
 ---
 
@@ -71,4 +72,19 @@ Started: Wed Jul  1 19:43:37 IST 2026
 - **Learnings for future iterations:**
   - Discovered mid-task that `Stop-Process -Name java` on this machine also targets the VS Code Java extension's bundled JRE (a separate long-lived process that restarts itself), not just the app under test — kill by the specific PID returned from `Start-Process`/`Get-NetTCPConnection -LocalPort 8080`, never by process name `java`.
   - The GET-all pattern (service method delegates directly to `repository.findAll()`, controller wraps in `ResponseEntity.ok(...)`) is the template for US-005 (get by id) too — same delegate-to-repository, no extra logic in controller.
+---
+
+## 2026-07-01 20:35 IST - US-005
+- Implemented GET /employees/{id} (Get Employee by ID).
+- Files changed:
+  - src/main/java/com/employee/EmployeeDatabase/service/EmployeeService.java (added getEmployeeById(id): repository.findById(id).orElseThrow(() -> new EmployeeNotFoundException(id)))
+  - src/main/java/com/employee/EmployeeDatabase/controller/EmployeeController.java (added @GetMapping("/{id}") with @PathVariable Long id)
+  - src/main/java/com/employee/EmployeeDatabase/exception/GlobalExceptionHandler.java (added @ExceptionHandler(EmployeeNotFoundException.class) -> 404 with {status, error, message} shape, matching the existing duplicate-email handler's shape)
+  - src/test/java/com/employee/EmployeeDatabase/service/EmployeeServiceTest.java (2 new Mockito tests: found, not found throws EmployeeNotFoundException)
+  - src/test/java/com/employee/EmployeeDatabase/controller/EmployeeGetByIdControllerTest.java (new — 3 @WebMvcTest+@MockitoBean tests: found 200, not found 404, invalid id type 400)
+- `mvn compile`, `mvn test` (25/25 tests pass across 6 test classes per target/surefire-reports), `mvn verify` all pass.
+- Manually started the app (`mvnw spring-boot:run`), confirmed: GET /employees/{id} returns 200 with the employee after a POST, GET /employees/9999 returns 404 with `{"status":404,"error":"Not Found","message":"Employee not found with id: 9999"}`, GET /employees/abc returns 400 (Spring's default MethodArgumentTypeMismatchException handling — no custom handler needed for the invalid-type case), and GET /v3/api-docs + /swagger-ui/index.html both still return 200 and list the new `/employees/{id}` path. Stopped the server and removed temp log files afterward.
+- **Learnings for future iterations:**
+  - `MethodArgumentTypeMismatchException` (bad path variable type, e.g. non-numeric `{id}`) already returns 400 Bad Request via Spring's built-in default handler with zero extra code — US-008 only needs to *reconcile the response body shape* to the standard `{timestamp, status, error, message, path}` format if a custom handler is added, not "make it return 400" (it already does).
+  - When starting the app via `mvnw.cmd spring-boot:run` through `Start-Process`, the PID returned by `Start-Process` is the `mvnw.cmd`/Maven wrapper process, NOT the actual JVM listening on port 8080 — stopping that PID alone leaves an orphaned java process holding the port and log files. Find the real PID with `Get-NetTCPConnection -LocalPort 8080 | Select-Object -ExpandProperty OwningProcess` and stop that one before cleaning up temp log files, or `git status`/file deletion will fail silently due to the lock.
 ---

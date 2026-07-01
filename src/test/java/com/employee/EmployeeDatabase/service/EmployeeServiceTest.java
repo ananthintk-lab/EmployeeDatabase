@@ -1,6 +1,7 @@
 package com.employee.EmployeeDatabase.service;
 
 import com.employee.EmployeeDatabase.exception.DuplicateEmailException;
+import com.employee.EmployeeDatabase.exception.EmployeeNotFoundException;
 import com.employee.EmployeeDatabase.model.Employee;
 import com.employee.EmployeeDatabase.repository.EmployeeRepository;
 import org.junit.jupiter.api.Test;
@@ -10,6 +11,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -72,5 +74,26 @@ class EmployeeServiceTest {
         List<Employee> result = employeeService.getAllEmployees();
 
         assertThat(result).containsExactly(first, second);
+    }
+
+    @Test
+    void getEmployeeById_whenFound_returnsEmployee() {
+        EmployeeService employeeService = new EmployeeService(employeeRepository);
+        Employee employee = new Employee(1L, "Jane", "Doe", "jane@example.com");
+        when(employeeRepository.findById(1L)).thenReturn(Optional.of(employee));
+
+        Employee result = employeeService.getEmployeeById(1L);
+
+        assertThat(result).isEqualTo(employee);
+    }
+
+    @Test
+    void getEmployeeById_whenNotFound_throwsEmployeeNotFoundException() {
+        EmployeeService employeeService = new EmployeeService(employeeRepository);
+        when(employeeRepository.findById(99L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> employeeService.getEmployeeById(99L))
+                .isInstanceOf(EmployeeNotFoundException.class)
+                .hasMessageContaining("99");
     }
 }
