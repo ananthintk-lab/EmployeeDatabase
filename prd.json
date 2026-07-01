@@ -55,11 +55,11 @@
         "mvn test passes"
       ],
       "priority": 3,
-      "passes": false,
+      "passes": true,
       "dependsOn": [
         "US-002"
       ],
-      "completionNotes": "Completed by agent"
+      "completionNotes": "Added EmployeeService (create with duplicate-email check), EmployeeController (POST /employees), DuplicateEmailException, and a starter GlobalExceptionHandler (409 for duplicate email; 400 for bean validation handled by Spring default). Unit tests for service, MockMvc integration tests for controller (success, blank field, invalid email, duplicate email). mvn compile/test/verify/clean install all pass."
     },
     {
       "id": "US-004",
@@ -189,6 +189,6 @@
     }
   ],
   "metadata": {
-    "updatedAt": "2026-06-29T06:55:23.588Z"
+    "updatedAt": "2026-07-01T14:43:00.000Z"
   }
 }

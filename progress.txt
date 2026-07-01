@@ -37,3 +37,22 @@ Started: Wed Jul  1 19:43:37 IST 2026
   - The repository is the single source of truth for id assignment and ordering — controllers built in later stories (US-003 to US-007) should just delegate to it and not re-implement sorting or id logic.
   - EmployeeNotFoundException is unchecked and takes the missing `Long id` in its constructor; the global exception handler (US-008) should catch this type directly.
 ---
+
+## 2026-07-01 20:13 IST - US-003
+- Implemented POST /employees (Create Employee).
+- Files changed:
+  - src/main/java/com/employee/EmployeeDatabase/service/EmployeeService.java (createEmployee: rejects duplicate email via existsByEmail, clears any client-supplied id before delegating to repository.save)
+  - src/main/java/com/employee/EmployeeDatabase/controller/EmployeeController.java (@RestController @RequestMapping("/employees"), POST returns 201 with @Valid @RequestBody Employee)
+  - src/main/java/com/employee/EmployeeDatabase/exception/DuplicateEmailException.java (RuntimeException, message includes the email)
+  - src/main/java/com/employee/EmployeeDatabase/exception/GlobalExceptionHandler.java (@RestControllerAdvice — currently only handles DuplicateEmailException -> 409; left intentionally minimal, US-008 will expand it to cover EmployeeNotFoundException, MethodArgumentNotValidException, MethodArgumentTypeMismatchException, and the full standard error format {timestamp, status, error, message, path})
+  - src/test/java/com/employee/EmployeeDatabase/service/EmployeeServiceTest.java (2 Mockito unit tests: unique email saves, duplicate email throws)
+  - src/test/java/com/employee/EmployeeDatabase/controller/EmployeeControllerTest.java (4 @SpringBootTest + MockMvc integration tests: success 201, blank firstName 400, invalid email 400, duplicate email 409)
+- `mvn compile`, `mvn test` (15/15 tests pass: 4 controller + 1 context + 8 repository + 2 service), `mvn verify`, `mvn clean install` all pass.
+- Manually started the app (`mvnw spring-boot:run`) and confirmed: GET /v3/api-docs returns 200 and lists POST /employees with the Employee schema (validation constraints like minLength visible); GET /swagger-ui/index.html returns 200; a live POST /employees call returned 201 with a generated id. Stopped the server afterward.
+- **Learnings for future iterations:**
+  - Bean Validation failures (`@Valid` on `@RequestBody`) already return 400 Bad Request via Spring's default `MethodArgumentNotValidException` handling with no custom handler needed — only non-framework business exceptions (like duplicate email) need an explicit `@ExceptionHandler`.
+  - `GlobalExceptionHandler` in `exception/` is the shared advice class — future stories should ADD `@ExceptionHandler` methods to this existing class rather than creating a second `@RestControllerAdvice`, and US-008 should refactor all handlers to the standard `{timestamp, status, error, message, path}` shape (the current 409 handler uses a smaller ad-hoc shape and will need updating then).
+  - `EmployeeControllerTest` uses `@SpringBootTest` + `@AutoConfigureMockMvc` with the real `InMemoryEmployeeRepository` bean (true integration test, no mocking of the repository) — all test methods share one Spring context and therefore one repository instance, so each test must use a unique email address to avoid unintended 409s across tests.
+  - springdoc-openapi auto-discovers `@RestController` endpoints with zero extra annotations — Swagger UI/OpenAPI JSON already show POST /employees correctly; US-009 only needs to ADD `@Operation`/`@ApiResponse` annotations for richer docs, not wire up Swagger itself (already working since US-001's dependency setup).
+  - On Windows/PowerShell, starting `mvnw spring-boot:run` via `Start-Process -RedirectStandardOutput/-RedirectStandardError` and polling with `Invoke-WebRequest` after a `Start-Sleep` works for manual Swagger/endpoint verification; remember to `Stop-Process` the java process afterward and delete any temp log/output files so `git status` stays clean before committing.
+---
