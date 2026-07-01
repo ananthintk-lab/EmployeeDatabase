@@ -1,0 +1,39 @@
+# Ralph Progress Log
+Started: Wed Jul  1 19:43:37 IST 2026
+---
+
+## Codebase Patterns
+- Package root is `com.employee.EmployeeDatabase`; use sub-packages `model`, `repository`, `exception`, `controller`, `dto`, `advice` under it as features are added.
+- Repository pattern: define a plain interface (e.g. `EmployeeRepository`) and back it with an `InMemoryEmployeeRepository` `@Repository` using `ConcurrentHashMap<Long, Employee>` + `AtomicLong` for thread-safe auto-increment IDs. No JPA/database — this project is intentionally in-memory only per CLAUDE.md requirements.
+- `findAll()` must return a list sorted by id ascending (acceptance criteria across stories expect deterministic ordering) — sort in the repository, not the controller.
+- `existsByEmail` does a case-insensitive comparison (`equalsIgnoreCase`) since email uniqueness should not be case-sensitive.
+- Validation annotations (`@NotBlank`, `@Email`) go directly on the `Employee` model fields (jakarta.validation.constraints), consistent with spring-boot-starter-validation.
+- On Windows, avoid PowerShell `-replace` with Get-Content/Set-Content on files containing non-ASCII characters (em-dashes etc.) — it mangled UTF-8 into mojibake in prd.json once. Prefer the Edit tool for any file with non-ASCII content.
+- `mvnw test`/`verify` print a benign "Mockito is currently self-attaching" / byte-buddy-agent warning on this JDK — it is not a build failure, ignore it when scanning output for real errors; check `target/surefire-reports/*.txt` for actual pass/fail counts instead of relying on console noise.
+
+---
+
+## 2026-07-01 19:50 IST - US-001 (corrective fix)
+- Discovered that prd.json claimed all 9 stories had `passes: true`, but the actual repo only contained the default Spring Boot skeleton (EmployeeDatabaseApplication + generated test) with wrong dependencies. Reset all stories to `passes: false` in prd.json to reflect reality before proceeding.
+- Fixed pom.xml: replaced `spring-boot-starter-data-jpa` with `spring-boot-starter-web` + `spring-boot-starter-validation` (required by US-001 acceptance criteria and by the "InMemory" requirement — no database/JPA needed). Replaced `spring-boot-starter-parent` version `4.1.0` (not a 3.x line) with `3.4.1` to satisfy "Spring Boot 3.x parent". Replaced `spring-boot-starter-data-jpa-test` with `spring-boot-starter-test`.
+- Created branch `feature/employee-management-api` from `main` per PRD `branchName`.
+- Files changed: pom.xml, prd.json
+- `mvn compile`, `mvn test`, `mvn verify` all pass.
+- **Learnings for future iterations:**
+  - Do not trust `passes: true` in prd.json at face value — always spot-check that the corresponding code actually exists before treating a story as done.
+  - Spring Boot 3.4.1 + Java 21 + spring-boot-starter-web/validation/springdoc-openapi-starter-webmvc-ui (2.8.9) is a working, verified combination on this machine.
+---
+
+## 2026-07-01 19:52 IST - US-002
+- Implemented Employee model and in-memory repository.
+- Files changed:
+  - src/main/java/com/employee/EmployeeDatabase/model/Employee.java (id, firstName, lastName, email with @NotBlank/@Email validation)
+  - src/main/java/com/employee/EmployeeDatabase/repository/EmployeeRepository.java (interface: save, findById, findAll, deleteById, existsByEmail)
+  - src/main/java/com/employee/EmployeeDatabase/repository/InMemoryEmployeeRepository.java (@Repository, ConcurrentHashMap + AtomicLong)
+  - src/main/java/com/employee/EmployeeDatabase/exception/EmployeeNotFoundException.java (RuntimeException, message includes missing id)
+  - src/test/java/com/employee/EmployeeDatabase/repository/InMemoryEmployeeRepositoryTest.java (8 unit tests: save/auto-increment id, findById found/missing, findAll empty/ordered, deleteById, existsByEmail case-insensitive true/false)
+- `mvn compile`, `mvn test` (8/8 new tests pass, 1/1 existing context test passes), `mvn verify` all pass.
+- **Learnings for future iterations:**
+  - The repository is the single source of truth for id assignment and ordering — controllers built in later stories (US-003 to US-007) should just delegate to it and not re-implement sorting or id logic.
+  - EmployeeNotFoundException is unchecked and takes the missing `Long id` in its constructor; the global exception handler (US-008) should catch this type directly.
+---

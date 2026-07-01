@@ -1,0 +1,82 @@
+package com.employee.EmployeeDatabase.repository;
+
+import com.employee.EmployeeDatabase.model.Employee;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+
+import java.util.List;
+import java.util.Optional;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+class InMemoryEmployeeRepositoryTest {
+
+    private InMemoryEmployeeRepository repository;
+
+    @BeforeEach
+    void setUp() {
+        repository = new InMemoryEmployeeRepository();
+    }
+
+    @Test
+    void save_assignsAutoIncrementedId() {
+        Employee first = repository.save(new Employee(null, "Jane", "Doe", "jane@example.com"));
+        Employee second = repository.save(new Employee(null, "John", "Smith", "john@example.com"));
+
+        assertThat(first.getId()).isEqualTo(1L);
+        assertThat(second.getId()).isEqualTo(2L);
+    }
+
+    @Test
+    void findById_returnsEmployeeWhenPresent() {
+        Employee saved = repository.save(new Employee(null, "Jane", "Doe", "jane@example.com"));
+
+        Optional<Employee> found = repository.findById(saved.getId());
+
+        assertThat(found).isPresent();
+        assertThat(found.get().getEmail()).isEqualTo("jane@example.com");
+    }
+
+    @Test
+    void findById_returnsEmptyWhenMissing() {
+        assertThat(repository.findById(999L)).isEmpty();
+    }
+
+    @Test
+    void findAll_returnsEmptyListWhenNoEmployees() {
+        assertThat(repository.findAll()).isEmpty();
+    }
+
+    @Test
+    void findAll_returnsEmployeesOrderedById() {
+        repository.save(new Employee(null, "Jane", "Doe", "jane@example.com"));
+        repository.save(new Employee(null, "John", "Smith", "john@example.com"));
+
+        List<Employee> all = repository.findAll();
+
+        assertThat(all).hasSize(2);
+        assertThat(all.get(0).getId()).isLessThan(all.get(1).getId());
+    }
+
+    @Test
+    void deleteById_removesEmployee() {
+        Employee saved = repository.save(new Employee(null, "Jane", "Doe", "jane@example.com"));
+
+        repository.deleteById(saved.getId());
+
+        assertThat(repository.findById(saved.getId())).isEmpty();
+    }
+
+    @Test
+    void existsByEmail_trueWhenEmailPresent() {
+        repository.save(new Employee(null, "Jane", "Doe", "jane@example.com"));
+
+        assertThat(repository.existsByEmail("jane@example.com")).isTrue();
+        assertThat(repository.existsByEmail("JANE@EXAMPLE.COM")).isTrue();
+    }
+
+    @Test
+    void existsByEmail_falseWhenEmailAbsent() {
+        assertThat(repository.existsByEmail("missing@example.com")).isFalse();
+    }
+}
