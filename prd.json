@@ -156,7 +156,7 @@
         "mvn test passes"
       ],
       "priority": 8,
-      "passes": false,
+      "passes": true,
       "dependsOn": [
         "US-003",
         "US-004",
@@ -164,7 +164,7 @@
         "US-006",
         "US-007"
       ],
-      "completionNotes": "Completed by agent"
+      "completionNotes": "Reconciled GlobalExceptionHandler to the standard { timestamp, status, error, message, path } shape for all four exception types: EmployeeNotFoundException (404), DuplicateEmailException (409), MethodArgumentNotValidException (400, joins all field errors), MethodArgumentTypeMismatchException (400). Added GlobalExceptionHandlerTest covering all four via MockMvc."
     },
     {
       "id": "US-009",
