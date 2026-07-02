@@ -65,6 +65,23 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
+    void employeeIdAlreadyExistsException_returns409WithStandardErrorShape() throws Exception {
+        Employee employee = new Employee(42L, "Jane", "Doe", "jane@example.com");
+        when(employeeService.createEmployee(any(Employee.class)))
+                .thenThrow(new EmployeeIdAlreadyExistsException(42L));
+
+        mockMvc.perform(post("/employees")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(employee)))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.timestamp").exists())
+                .andExpect(jsonPath("$.status").value(409))
+                .andExpect(jsonPath("$.error").value("Conflict"))
+                .andExpect(jsonPath("$.message").value("Employee already exists with id: 42"))
+                .andExpect(jsonPath("$.path").value("/employees"));
+    }
+
+    @Test
     void methodArgumentNotValidException_returns400WithFieldErrorsInMessage() throws Exception {
         Employee employee = new Employee(null, "", "", "not-an-email");
 

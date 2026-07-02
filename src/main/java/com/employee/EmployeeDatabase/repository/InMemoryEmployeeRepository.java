@@ -20,6 +20,8 @@ public class InMemoryEmployeeRepository implements EmployeeRepository {
     public Employee save(Employee employee) {
         if (employee.getId() == null) {
             employee.setId(idSequence.incrementAndGet());
+        } else {
+            idSequence.updateAndGet(current -> Math.max(current, employee.getId()));
         }
         employees.put(employee.getId(), employee);
         return employee;

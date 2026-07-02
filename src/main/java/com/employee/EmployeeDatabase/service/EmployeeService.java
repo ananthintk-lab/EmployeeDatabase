@@ -1,6 +1,7 @@
 package com.employee.EmployeeDatabase.service;
 
 import com.employee.EmployeeDatabase.exception.DuplicateEmailException;
+import com.employee.EmployeeDatabase.exception.EmployeeIdAlreadyExistsException;
 import com.employee.EmployeeDatabase.exception.EmployeeNotFoundException;
 import com.employee.EmployeeDatabase.model.Employee;
 import com.employee.EmployeeDatabase.repository.EmployeeRepository;
@@ -20,13 +21,17 @@ public class EmployeeService {
 
     /**
      * Creates a new employee, rejecting the request if the email is already in use.
-     * Any client-supplied id is ignored — the repository always assigns a fresh id.
+     * If the client supplies an id in the request body, it is honored (rejecting the
+     * request with a conflict if that id is already taken); otherwise the repository
+     * assigns a fresh id.
      */
     public Employee createEmployee(Employee employee) {
         if (employeeRepository.existsByEmail(employee.getEmail())) {
             throw new DuplicateEmailException(employee.getEmail());
         }
-        employee.setId(null);
+        if (employee.getId() != null && employeeRepository.findById(employee.getId()).isPresent()) {
+            throw new EmployeeIdAlreadyExistsException(employee.getId());
+        }
         return employeeRepository.save(employee);
     }
 

@@ -30,12 +30,12 @@ public class EmployeeController {
         this.employeeService = employeeService;
     }
 
-    /** Creates a new employee and returns it with its generated id. */
-    @Operation(summary = "Create a new employee", description = "Creates an employee record with a generated id. The email must be unique across all employees.")
+    /** Creates a new employee, honoring a client-supplied id if present, or generating one otherwise. */
+    @Operation(summary = "Create a new employee", description = "Creates an employee record. If the request body includes an id, it is used as-is (rejected with 409 if already taken); otherwise an id is generated. The email must be unique across all employees.")
     @ApiResponses({
             @ApiResponse(responseCode = "201", description = "Employee created successfully"),
             @ApiResponse(responseCode = "400", description = "Validation failure (blank fields or invalid email)"),
-            @ApiResponse(responseCode = "409", description = "An employee with this email already exists")
+            @ApiResponse(responseCode = "409", description = "An employee with this email or id already exists")
     })
     @PostMapping
     public ResponseEntity<Employee> createEmployee(@Valid @RequestBody Employee employee) {

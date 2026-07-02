@@ -1,6 +1,7 @@
 package com.employee.EmployeeDatabase.service;
 
 import com.employee.EmployeeDatabase.exception.DuplicateEmailException;
+import com.employee.EmployeeDatabase.exception.EmployeeIdAlreadyExistsException;
 import com.employee.EmployeeDatabase.exception.EmployeeNotFoundException;
 import com.employee.EmployeeDatabase.model.Employee;
 import com.employee.EmployeeDatabase.repository.EmployeeRepository;
@@ -50,6 +51,50 @@ class EmployeeServiceTest {
         assertThatThrownBy(() -> employeeService.createEmployee(employee))
                 .isInstanceOf(DuplicateEmailException.class)
                 .hasMessageContaining("jane@example.com");
+
+        verify(employeeRepository, never()).save(any());
+    }
+
+    @Test
+    void createEmployee_withClientSuppliedId_honorsThatId() {
+        EmployeeService employeeService = new EmployeeService(employeeRepository);
+        Employee employee = new Employee(42L, "Jane", "Doe", "jane@example.com");
+        when(employeeRepository.existsByEmail("jane@example.com")).thenReturn(false);
+        when(employeeRepository.findById(42L)).thenReturn(Optional.empty());
+        when(employeeRepository.save(employee)).thenReturn(employee);
+
+        Employee result = employeeService.createEmployee(employee);
+
+        assertThat(result.getId()).isEqualTo(42L);
+        verify(employeeRepository).save(employee);
+    }
+
+    @Test
+    void createEmployee_withoutId_letsRepositoryGenerateId() {
+        EmployeeService employeeService = new EmployeeService(employeeRepository);
+        Employee employee = new Employee(null, "Jane", "Doe", "jane@example.com");
+        Employee saved = new Employee(1L, "Jane", "Doe", "jane@example.com");
+        when(employeeRepository.existsByEmail("jane@example.com")).thenReturn(false);
+        when(employeeRepository.save(employee)).thenReturn(saved);
+
+        Employee result = employeeService.createEmployee(employee);
+
+        assertThat(result.getId()).isEqualTo(1L);
+        verify(employeeRepository, never()).findById(any());
+        verify(employeeRepository).save(employee);
+    }
+
+    @Test
+    void createEmployee_withClientSuppliedIdAlreadyTaken_throwsEmployeeIdAlreadyExistsException() {
+        EmployeeService employeeService = new EmployeeService(employeeRepository);
+        Employee existing = new Employee(42L, "John", "Smith", "john@example.com");
+        Employee employee = new Employee(42L, "Jane", "Doe", "jane@example.com");
+        when(employeeRepository.existsByEmail("jane@example.com")).thenReturn(false);
+        when(employeeRepository.findById(42L)).thenReturn(Optional.of(existing));
+
+        assertThatThrownBy(() -> employeeService.createEmployee(employee))
+                .isInstanceOf(EmployeeIdAlreadyExistsException.class)
+                .hasMessageContaining("42");
 
         verify(employeeRepository, never()).save(any());
     }

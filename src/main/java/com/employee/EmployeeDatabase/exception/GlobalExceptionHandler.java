@@ -26,6 +26,12 @@ public class GlobalExceptionHandler {
         return buildResponse(HttpStatus.CONFLICT, exception.getMessage(), request);
     }
 
+    @ExceptionHandler(EmployeeIdAlreadyExistsException.class)
+    public ResponseEntity<Map<String, Object>> handleEmployeeIdAlreadyExists(EmployeeIdAlreadyExistsException exception,
+                                                                                HttpServletRequest request) {
+        return buildResponse(HttpStatus.CONFLICT, exception.getMessage(), request);
+    }
+
     @ExceptionHandler(EmployeeNotFoundException.class)
     public ResponseEntity<Map<String, Object>> handleEmployeeNotFound(EmployeeNotFoundException exception,
                                                                         HttpServletRequest request) {
