@@ -1,0 +1,25 @@
+# Ralph Progress Log
+Started: Thu Jul  2 15:12:41 IST 2026
+---
+
+## Codebase Patterns
+- `InMemoryEmployeeRepository.save()` auto-generates an id via an `AtomicLong idSequence` only when `employee.getId() == null`. When honoring a client-supplied id, advance the sequence past it (`idSequence.updateAndGet(current -> Math.max(current, employee.getId()))`) to prevent future auto-generated ids from colliding with it.
+- Conflict-style exceptions (duplicate email, duplicate id, etc.) each get their own `RuntimeException` subclass in `exception/` and a matching `@ExceptionHandler` method in `GlobalExceptionHandler` that delegates to the shared `buildResponse(HttpStatus, message, request)` helper — follow this pattern for new conflict cases instead of reusing an existing exception type.
+- `pom.xml` and `mvnw`/`mvnw.cmd` live in the `EmployeeDatabase` root, one level above this `defect` directory — run Maven commands from there (e.g. `..\mvnw.cmd verify -q` or `cd` up first), not from `defect`.
+
+## 2026-07-02 15:14 IST - Defect: POST /employees ignores request body id
+- What was implemented: `EmployeeService.createEmployee()` no longer force-clears the request id. If the client supplies an id, it's checked for a conflict (`EmployeeIdAlreadyExistsException` -> 409) and then honored; otherwise the repository still auto-generates one. `InMemoryEmployeeRepository.save()` advances its id sequence past any client-supplied id so later auto-generated ids can't collide with it.
+- Files changed:
+  - src/main/java/com/employee/EmployeeDatabase/service/EmployeeService.java
+  - src/main/java/com/employee/EmployeeDatabase/repository/InMemoryEmployeeRepository.java
+  - src/main/java/com/employee/EmployeeDatabase/exception/EmployeeIdAlreadyExistsException.java (new)
+  - src/main/java/com/employee/EmployeeDatabase/exception/GlobalExceptionHandler.java
+  - src/main/java/com/employee/EmployeeDatabase/controller/EmployeeController.java (Swagger docs updated)
+  - Corresponding tests in src/test/java/... for controller, service, repository, and GlobalExceptionHandler
+- Validation: `mvnw compile -q`, `mvnw test -q` (all 47 tests pass), and `mvnw verify -q` all succeeded.
+- Commit: b6fc0b5 "fix: honor client-supplied employee id in POST /employees"
+- **Learnings for future iterations:**
+  - See Codebase Patterns above for the id-sequence-advance and exception-handler patterns.
+  - This was a bug-fix task tracked via `tasks.json` (not `prd.json`/user stories) — all 4 tasks (root cause analysis, fix, tests, build validation) are now marked "done".
+  - `run-out.log` / `run-err.log` in the repo root are stale scratch output from a prior manual PowerShell test run (UTF-16 encoded, garbled when read as UTF-8) — left untracked/uncommitted, not part of the fix.
+---
