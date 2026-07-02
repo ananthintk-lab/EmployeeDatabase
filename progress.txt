@@ -1,0 +1,149 @@
+# Ralph Progress Log
+Started: Wed Jul  1 19:43:37 IST 2026
+---
+
+## Codebase Patterns
+- Package root is `com.employee.EmployeeDatabase`; use sub-packages `model`, `repository`, `exception`, `controller`, `dto`, `advice` under it as features are added.
+- Repository pattern: define a plain interface (e.g. `EmployeeRepository`) and back it with an `InMemoryEmployeeRepository` `@Repository` using `ConcurrentHashMap<Long, Employee>` + `AtomicLong` for thread-safe auto-increment IDs. No JPA/database — this project is intentionally in-memory only per CLAUDE.md requirements.
+- `findAll()` must return a list sorted by id ascending (acceptance criteria across stories expect deterministic ordering) — sort in the repository, not the controller.
+- `existsByEmail` does a case-insensitive comparison (`equalsIgnoreCase`) since email uniqueness should not be case-sensitive.
+- Validation annotations (`@NotBlank`, `@Email`) go directly on the `Employee` model fields (jakarta.validation.constraints), consistent with spring-boot-starter-validation.
+- On Windows, avoid PowerShell `-replace` with Get-Content/Set-Content on files containing non-ASCII characters (em-dashes etc.) — it mangled UTF-8 into mojibake in prd.json once. Prefer the Edit tool for any file with non-ASCII content.
+- `mvnw test`/`verify` print a benign "Mockito is currently self-attaching" / byte-buddy-agent warning on this JDK — it is not a build failure, ignore it when scanning output for real errors; check `target/surefire-reports/*.txt` for actual pass/fail counts instead of relying on console noise.
+- `@SpringBootTest` test classes share one cached Spring context (and one `InMemoryEmployeeRepository` instance) across the whole test run. For endpoints whose acceptance criteria require exact list-content assertions (e.g. "empty store", "N employees"), use `@WebMvcTest(EmployeeController.class)` + `@MockitoBean EmployeeService` instead so each test fully controls the data returned — see `EmployeeGetAllControllerTest`. Use `@MockitoBean` (not the deprecated `@MockBean`) on Spring Boot 3.4+.
+- When manually verifying a running instance on Windows via `Start-Process ./mvnw.cmd spring-boot:run`, the returned `Start-Process` PID is the wrapper process, not the JVM on port 8080 — get the real PID via `Get-NetTCPConnection -LocalPort 8080 | Select-Object -ExpandProperty OwningProcess` and stop that one, or the port/log files stay locked after cleanup.
+
+---
+
+## 2026-07-01 19:50 IST - US-001 (corrective fix)
+- Discovered that prd.json claimed all 9 stories had `passes: true`, but the actual repo only contained the default Spring Boot skeleton (EmployeeDatabaseApplication + generated test) with wrong dependencies. Reset all stories to `passes: false` in prd.json to reflect reality before proceeding.
+- Fixed pom.xml: replaced `spring-boot-starter-data-jpa` with `spring-boot-starter-web` + `spring-boot-starter-validation` (required by US-001 acceptance criteria and by the "InMemory" requirement — no database/JPA needed). Replaced `spring-boot-starter-parent` version `4.1.0` (not a 3.x line) with `3.4.1` to satisfy "Spring Boot 3.x parent". Replaced `spring-boot-starter-data-jpa-test` with `spring-boot-starter-test`.
+- Created branch `feature/employee-management-api` from `main` per PRD `branchName`.
+- Files changed: pom.xml, prd.json
+- `mvn compile`, `mvn test`, `mvn verify` all pass.
+- **Learnings for future iterations:**
+  - Do not trust `passes: true` in prd.json at face value — always spot-check that the corresponding code actually exists before treating a story as done.
+  - Spring Boot 3.4.1 + Java 21 + spring-boot-starter-web/validation/springdoc-openapi-starter-webmvc-ui (2.8.9) is a working, verified combination on this machine.
+---
+
+## 2026-07-01 19:52 IST - US-002
+- Implemented Employee model and in-memory repository.
+- Files changed:
+  - src/main/java/com/employee/EmployeeDatabase/model/Employee.java (id, firstName, lastName, email with @NotBlank/@Email validation)
+  - src/main/java/com/employee/EmployeeDatabase/repository/EmployeeRepository.java (interface: save, findById, findAll, deleteById, existsByEmail)
+  - src/main/java/com/employee/EmployeeDatabase/repository/InMemoryEmployeeRepository.java (@Repository, ConcurrentHashMap + AtomicLong)
+  - src/main/java/com/employee/EmployeeDatabase/exception/EmployeeNotFoundException.java (RuntimeException, message includes missing id)
+  - src/test/java/com/employee/EmployeeDatabase/repository/InMemoryEmployeeRepositoryTest.java (8 unit tests: save/auto-increment id, findById found/missing, findAll empty/ordered, deleteById, existsByEmail case-insensitive true/false)
+- `mvn compile`, `mvn test` (8/8 new tests pass, 1/1 existing context test passes), `mvn verify` all pass.
+- **Learnings for future iterations:**
+  - The repository is the single source of truth for id assignment and ordering — controllers built in later stories (US-003 to US-007) should just delegate to it and not re-implement sorting or id logic.
+  - EmployeeNotFoundException is unchecked and takes the missing `Long id` in its constructor; the global exception handler (US-008) should catch this type directly.
+---
+
+## 2026-07-01 20:13 IST - US-003
+- Implemented POST /employees (Create Employee).
+- Files changed:
+  - src/main/java/com/employee/EmployeeDatabase/service/EmployeeService.java (createEmployee: rejects duplicate email via existsByEmail, clears any client-supplied id before delegating to repository.save)
+  - src/main/java/com/employee/EmployeeDatabase/controller/EmployeeController.java (@RestController @RequestMapping("/employees"), POST returns 201 with @Valid @RequestBody Employee)
+  - src/main/java/com/employee/EmployeeDatabase/exception/DuplicateEmailException.java (RuntimeException, message includes the email)
+  - src/main/java/com/employee/EmployeeDatabase/exception/GlobalExceptionHandler.java (@RestControllerAdvice — currently only handles DuplicateEmailException -> 409; left intentionally minimal, US-008 will expand it to cover EmployeeNotFoundException, MethodArgumentNotValidException, MethodArgumentTypeMismatchException, and the full standard error format {timestamp, status, error, message, path})
+  - src/test/java/com/employee/EmployeeDatabase/service/EmployeeServiceTest.java (2 Mockito unit tests: unique email saves, duplicate email throws)
+  - src/test/java/com/employee/EmployeeDatabase/controller/EmployeeControllerTest.java (4 @SpringBootTest + MockMvc integration tests: success 201, blank firstName 400, invalid email 400, duplicate email 409)
+- `mvn compile`, `mvn test` (15/15 tests pass: 4 controller + 1 context + 8 repository + 2 service), `mvn verify`, `mvn clean install` all pass.
+- Manually started the app (`mvnw spring-boot:run`) and confirmed: GET /v3/api-docs returns 200 and lists POST /employees with the Employee schema (validation constraints like minLength visible); GET /swagger-ui/index.html returns 200; a live POST /employees call returned 201 with a generated id. Stopped the server afterward.
+- **Learnings for future iterations:**
+  - Bean Validation failures (`@Valid` on `@RequestBody`) already return 400 Bad Request via Spring's default `MethodArgumentNotValidException` handling with no custom handler needed — only non-framework business exceptions (like duplicate email) need an explicit `@ExceptionHandler`.
+  - `GlobalExceptionHandler` in `exception/` is the shared advice class — future stories should ADD `@ExceptionHandler` methods to this existing class rather than creating a second `@RestControllerAdvice`, and US-008 should refactor all handlers to the standard `{timestamp, status, error, message, path}` shape (the current 409 handler uses a smaller ad-hoc shape and will need updating then).
+  - `EmployeeControllerTest` uses `@SpringBootTest` + `@AutoConfigureMockMvc` with the real `InMemoryEmployeeRepository` bean (true integration test, no mocking of the repository) — all test methods share one Spring context and therefore one repository instance, so each test must use a unique email address to avoid unintended 409s across tests.
+  - springdoc-openapi auto-discovers `@RestController` endpoints with zero extra annotations — Swagger UI/OpenAPI JSON already show POST /employees correctly; US-009 only needs to ADD `@Operation`/`@ApiResponse` annotations for richer docs, not wire up Swagger itself (already working since US-001's dependency setup).
+  - On Windows/PowerShell, starting `mvnw spring-boot:run` via `Start-Process -RedirectStandardOutput/-RedirectStandardError` and polling with `Invoke-WebRequest` after a `Start-Sleep` works for manual Swagger/endpoint verification; remember to `Stop-Process` the java process afterward and delete any temp log/output files so `git status` stays clean before committing.
+---
+
+## 2026-07-01 20:20 IST - US-004
+- Implemented GET /employees (Get All Employees).
+- Files changed:
+  - src/main/java/com/employee/EmployeeDatabase/service/EmployeeService.java (added getAllEmployees(), delegates to repository.findAll())
+  - src/main/java/com/employee/EmployeeDatabase/controller/EmployeeController.java (added @GetMapping returning ResponseEntity.ok(list))
+  - src/test/java/com/employee/EmployeeDatabase/service/EmployeeServiceTest.java (2 new Mockito tests: empty list, ordered list passthrough)
+  - src/test/java/com/employee/EmployeeDatabase/controller/EmployeeGetAllControllerTest.java (new — 3 @WebMvcTest+@MockitoBean tests: empty array, single employee, multiple employees)
+  - src/test/java/com/employee/EmployeeDatabase/controller/CLAUDE.md (new — documents the shared-context isolation gotcha and the @WebMvcTest+@MockitoBean workaround)
+- `mvn compile`, `mvn test` (20/20 tests pass across 5 test classes per target/surefire-reports), `mvn verify` all pass.
+- Manually started the app (`mvnw spring-boot:run` via Start-Process, port 8080): confirmed GET /employees returns `[]` before any employee exists, POST /employees returns 201, and a subsequent GET /employees returns the created employee in a one-element array. Also confirmed GET /v3/api-docs still returns 200. Stopped the server and removed temp log files afterward.
+- **Learnings for future iterations:**
+  - Discovered mid-task that `Stop-Process -Name java` on this machine also targets the VS Code Java extension's bundled JRE (a separate long-lived process that restarts itself), not just the app under test — kill by the specific PID returned from `Start-Process`/`Get-NetTCPConnection -LocalPort 8080`, never by process name `java`.
+  - The GET-all pattern (service method delegates directly to `repository.findAll()`, controller wraps in `ResponseEntity.ok(...)`) is the template for US-005 (get by id) too — same delegate-to-repository, no extra logic in controller.
+---
+
+## 2026-07-01 20:35 IST - US-005
+- Implemented GET /employees/{id} (Get Employee by ID).
+- Files changed:
+  - src/main/java/com/employee/EmployeeDatabase/service/EmployeeService.java (added getEmployeeById(id): repository.findById(id).orElseThrow(() -> new EmployeeNotFoundException(id)))
+  - src/main/java/com/employee/EmployeeDatabase/controller/EmployeeController.java (added @GetMapping("/{id}") with @PathVariable Long id)
+  - src/main/java/com/employee/EmployeeDatabase/exception/GlobalExceptionHandler.java (added @ExceptionHandler(EmployeeNotFoundException.class) -> 404 with {status, error, message} shape, matching the existing duplicate-email handler's shape)
+  - src/test/java/com/employee/EmployeeDatabase/service/EmployeeServiceTest.java (2 new Mockito tests: found, not found throws EmployeeNotFoundException)
+  - src/test/java/com/employee/EmployeeDatabase/controller/EmployeeGetByIdControllerTest.java (new — 3 @WebMvcTest+@MockitoBean tests: found 200, not found 404, invalid id type 400)
+- `mvn compile`, `mvn test` (25/25 tests pass across 6 test classes per target/surefire-reports), `mvn verify` all pass.
+- Manually started the app (`mvnw spring-boot:run`), confirmed: GET /employees/{id} returns 200 with the employee after a POST, GET /employees/9999 returns 404 with `{"status":404,"error":"Not Found","message":"Employee not found with id: 9999"}`, GET /employees/abc returns 400 (Spring's default MethodArgumentTypeMismatchException handling — no custom handler needed for the invalid-type case), and GET /v3/api-docs + /swagger-ui/index.html both still return 200 and list the new `/employees/{id}` path. Stopped the server and removed temp log files afterward.
+- **Learnings for future iterations:**
+  - `MethodArgumentTypeMismatchException` (bad path variable type, e.g. non-numeric `{id}`) already returns 400 Bad Request via Spring's built-in default handler with zero extra code — US-008 only needs to *reconcile the response body shape* to the standard `{timestamp, status, error, message, path}` format if a custom handler is added, not "make it return 400" (it already does).
+  - When starting the app via `mvnw.cmd spring-boot:run` through `Start-Process`, the PID returned by `Start-Process` is the `mvnw.cmd`/Maven wrapper process, NOT the actual JVM listening on port 8080 — stopping that PID alone leaves an orphaned java process holding the port and log files. Find the real PID with `Get-NetTCPConnection -LocalPort 8080 | Select-Object -ExpandProperty OwningProcess` and stop that one before cleaning up temp log files, or `git status`/file deletion will fail silently due to the lock.
+- springdoc-openapi (2.8.9) reads jakarta Bean Validation annotations for schema constraints, but coverage is uneven: `@NotBlank`/`@Size` reliably produce `minLength`/`maxLength` in the generated schema, but `@Email` does NOT automatically produce `format: "email"` — add an explicit `@Schema(format = "email")` alongside `@Email` if the acceptance criteria require the constraint to be visible in the OpenAPI schema.
+---
+
+## 2026-07-01 20:56 IST - US-006
+- Implemented PUT /employees/{id} (Update Employee).
+- Files changed:
+  - src/main/java/com/employee/EmployeeDatabase/repository/EmployeeRepository.java (added existsByEmailAndIdNot(email, id))
+  - src/main/java/com/employee/EmployeeDatabase/repository/InMemoryEmployeeRepository.java (impl: matches email case-insensitively, excludes the given id)
+  - src/main/java/com/employee/EmployeeDatabase/service/EmployeeService.java (added updateEmployee(id, employee): findById-or-throw EmployeeNotFoundException, existsByEmailAndIdNot-or-throw DuplicateEmailException, sets path id on body, saves)
+  - src/main/java/com/employee/EmployeeDatabase/controller/EmployeeController.java (added @PutMapping("/{id}") with @Valid @RequestBody Employee)
+  - src/test/java/com/employee/EmployeeDatabase/repository/InMemoryEmployeeRepositoryTest.java (2 new tests: existsByEmailAndIdNot false for own email, true for another employee's email)
+  - src/test/java/com/employee/EmployeeDatabase/service/EmployeeServiceTest.java (4 new Mockito tests: success, not found, duplicate email with another employee, same-email-allowed)
+  - src/test/java/com/employee/EmployeeDatabase/controller/EmployeeUpdateControllerTest.java (new — 4 @WebMvcTest+@MockitoBean tests: 200 success, 404 not found, 400 blank field, 409 duplicate email)
+- `mvn compile`, `mvn test` (35/35 tests pass across 7 test classes per target/surefire-reports), `mvn verify` all pass.
+- Manually started the app (`mvnw spring-boot:run`), confirmed via PowerShell `Invoke-RestMethod`: PUT on an existing id returns 200 with updated fields; PUT on a non-existent id (99999) returns 404; PUT reusing another employee's email returns 409; PUT keeping the same employee's own email succeeds (not exercised via HTTP but covered by unit tests). Confirmed `/v3/api-docs` lists a `put` operation under `/employees/{id}` and Swagger UI (`/swagger-ui/index.html`) still returns 200. Stopped the server (via the real PID from `Get-NetTCPConnection -LocalPort 8080`) and removed temp log files afterward.
+- **Learnings for future iterations:**
+  - The "exclude current record" uniqueness-check pattern (`existsByEmailAndIdNot`) added here is reusable for any future story needing update-time uniqueness validation — added directly to `EmployeeRepository`/`InMemoryEmployeeRepository` alongside the existing `existsByEmail`, not as service-layer filtering over `findAll()`.
+  - Update endpoints should always overwrite the path `{id}` onto the request body (`employee.setId(id)`) before saving, ignoring/ignoring-precedence over any id the client puts in the JSON body — mirrors how `createEmployee` clears the client-supplied id.
+---
+
+## 2026-07-01 21:30 IST - US-007
+- Implemented DELETE /employees/{id} (Delete Employee).
+- Files changed:
+  - src/main/java/com/employee/EmployeeDatabase/service/EmployeeService.java (added deleteEmployee(id): repository.findById-or-throw EmployeeNotFoundException, then repository.deleteById(id))
+  - src/main/java/com/employee/EmployeeDatabase/controller/EmployeeController.java (added @DeleteMapping("/{id}") returning ResponseEntity.noContent().build())
+  - src/test/java/com/employee/EmployeeDatabase/service/EmployeeServiceTest.java (2 new Mockito tests: success calls deleteById, not-found throws EmployeeNotFoundException and never calls deleteById)
+  - src/test/java/com/employee/EmployeeDatabase/controller/EmployeeDeleteControllerTest.java (new — 2 @WebMvcTest+@MockitoBean tests: 204 success, 404 not found)
+- `mvn compile`, `mvn test` (39/39 tests pass across 8 test classes per target/surefire-reports), `mvn verify` all pass.
+- Manually started the app (`mvnw spring-boot:run`), confirmed via PowerShell `Invoke-RestMethod`/`Invoke-WebRequest -UseBasicParsing`: DELETE on an existing id returns 204 No Content, a subsequent GET on that id returns 404, DELETE on a non-existent id (999999) returns 404, and `/v3/api-docs` lists a `delete` operation under `/employees/{id}`. Stopped the server (via the real PID from `Get-NetTCPConnection -LocalPort 8080`) and removed temp log files afterward.
+- **Learnings for future iterations:**
+  - `Invoke-WebRequest` (without `-UseBasicParsing`) can throw `PSInvalidOperationException` ("Windows PowerShell is in NonInteractive mode...") in this non-interactive shell when trying to use the IE-based parsing engine — always pass `-UseBasicParsing` when checking raw status codes (e.g. verifying 204 No Content) via `Invoke-WebRequest` on this machine; `Invoke-RestMethod` is fine for JSON bodies but doesn't surface status codes as easily on success.
+  - The delete-by-id pattern (service does findById-or-throw then deleteById, controller returns 204 via `ResponseEntity.noContent().build()`) completes the full CRUD set on `EmployeeController`/`EmployeeService` — US-008 (Global Exception Handling) is next and should consolidate all four exception handlers (`EmployeeNotFoundException`, `MethodArgumentNotValidException`, duplicate email, `MethodArgumentTypeMismatchException`) in the existing `GlobalExceptionHandler` into the standard `{timestamp, status, error, message, path}` shape — the current 404/409 handlers use a smaller `{status, error, message}` shape without `timestamp`/`path` and will need updating then.
+---
+
+## 2026-07-01 21:30 IST - US-008
+- Implemented Global Exception Handling: reconciled all exception handlers to the standard `{ timestamp, status, error, message, path }` response shape and added the two remaining framework handlers required by the acceptance criteria.
+- Files changed:
+  - src/main/java/com/employee/EmployeeDatabase/exception/GlobalExceptionHandler.java (rewritten: added a shared private `buildResponse(HttpStatus, String, HttpServletRequest)` helper used by all handlers; updated `handleDuplicateEmail` and `handleEmployeeNotFound` to use it; added `handleValidationErrors(MethodArgumentNotValidException)` -> 400, joining all field errors as `"field: message; field2: message2"`; added `handleTypeMismatch(MethodArgumentTypeMismatchException)` -> 400)
+  - src/main/java/com/employee/EmployeeDatabase/exception/CLAUDE.md (documented the shared `buildResponse` helper, the field-error joining format, and that `path` comes from an auto-resolved `HttpServletRequest` parameter, not class-level autowiring)
+  - src/test/java/com/employee/EmployeeDatabase/exception/GlobalExceptionHandlerTest.java (new — 4 @WebMvcTest+@MockitoBean tests, one per exception type, each asserting the full standard shape: timestamp exists, status, error, message content, path)
+- `mvn compile`, `mvn test` (43/43 tests pass across 9 test classes per target/surefire-reports), `mvn verify` all pass.
+- Manually started the app (`mvnw spring-boot:run`), confirmed via PowerShell `Invoke-WebRequest -UseBasicParsing` + manual response-stream reading (needed because `Invoke-RestMethod`/`Invoke-WebRequest` don't expose non-2xx response bodies through normal catch handling — see learnings): GET /employees/99999 -> 404 with full standard shape; GET /employees/abc -> 400 `"Parameter 'id' should be of type Long"`; POST with blank firstName + invalid email -> 400 with both field errors joined in one message; POST duplicate email -> 409 with full standard shape. Stopped the server (via the real PID from `Get-NetTCPConnection -LocalPort 8080`) and removed temp log files afterward.
+- **Learnings for future iterations:**
+  - To read a non-2xx response BODY from PowerShell (not just the status code), `Invoke-RestMethod`'s `$_.ErrorDetails.Message` came back empty in this environment — instead catch the exception, get `$_.Exception.Response.GetResponseStream()`, and read it via `New-Object System.IO.StreamReader($stream)` / `.ReadToEnd()`. Use this pattern for any future manual verification that needs to inspect error response bodies, not just status codes.
+  - Existing tests (`EmployeeUpdateControllerTest`'s 404/409 assertions, `EmployeeControllerTest`'s 400/409 assertions) only checked `status`/`message`/`status code`, never asserted the full body shape, so widening the response body with `timestamp`/`path` fields was a non-breaking additive change — no existing test needed updating.
+  - All 5 CRUD endpoints (US-003 through US-007) and the shared exception handling (US-008) are now complete — only US-009 (OpenAPI/Swagger annotations: `@Operation`/`@ApiResponse` on each endpoint, richer API info) remains.
+---
+
+## 2026-07-01 22:10 IST - US-009
+- Implemented OpenAPI / Swagger Documentation: richer API info and per-endpoint `@Operation`/`@ApiResponses` annotations; no new business logic, so no new unit/integration tests were required beyond re-running the existing suite to confirm nothing broke.
+- Files changed:
+  - src/main/java/com/employee/EmployeeDatabase/EmployeeDatabaseApplication.java (added `@OpenAPIDefinition(info = @Info(title = "Employee Management API", version = "1.0.0", description = "REST API for creating, retrieving, updating, and deleting employee records."))`)
+  - src/main/java/com/employee/EmployeeDatabase/controller/EmployeeController.java (added `@Operation(summary=..., description=...)` and `@ApiResponses({@ApiResponse(...), ...})` to all 5 endpoints: POST, GET all, GET by id, PUT, DELETE)
+  - src/main/java/com/employee/EmployeeDatabase/model/Employee.java (added `@Schema(format = "email")` on the `email` field so the `@Email` constraint is visible in the generated schema — see Codebase Patterns note above)
+- `mvn compile`, `mvn test` (43/43 tests pass across 9 test classes per target/surefire-reports), `mvn verify`, `mvn clean install` all pass.
+- Manually started the app (`mvnw spring-boot:run` via `Start-Process`, PID resolved via `Get-NetTCPConnection -LocalPort 8080`): confirmed `/v3/api-docs` returns `info.title = "Employee Management API"`, `info.version = "1.0.0"`, a non-empty `info.description`; all 5 operations (`GET /employees`, `POST /employees`, `GET /employees/{id}`, `PUT /employees/{id}`, `DELETE /employees/{id}`) show the expected `summary` text; the `Employee` schema shows `firstName`/`lastName` with `minLength: 1` and `email` with `format: "email"` + `minLength: 1`. Confirmed `/swagger-ui/index.html` returns 200. Stopped the server (via the real PID) and removed temp log files afterward.
+- **Learnings for future iterations:**
+  - This was the last story in prd.json (US-001 through US-009) — all 9 stories now have `passes: true`. The full CRUD API (create/read/read-all/update/delete), global exception handling, and OpenAPI/Swagger documentation are complete.
+  - `@OpenAPIDefinition` is the simplest way to set global API `info` (title/version/description) when there's no existing `@Configuration` class dedicated to OpenAPI — placed directly on the `@SpringBootApplication` main class here since none existed.
+---
